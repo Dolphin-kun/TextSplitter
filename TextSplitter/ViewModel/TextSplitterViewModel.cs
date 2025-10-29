@@ -14,7 +14,7 @@ namespace TextSplitter.ViewModel
     {
         private Timeline? _timeline;
         private UndoRedoManager? _undoRedoManager;
-        private IItem? _selectedItem;
+        private IReadOnlyList<IItem> _selectedItems = [];
 
         public ICommand SplitTextCommand { get; }
 
@@ -29,27 +29,43 @@ namespace TextSplitter.ViewModel
         private void SplitText()
         {
             if (_timeline is null) return;
-            if (_selectedItem is null) return;
             if (_undoRedoManager is null) return;
+            if (_selectedItems.Count == 0) return;
 
+            var settings = TextSplitterSettings.Default;
+
+            var itemsToSplit = _selectedItems
+                .Where(item => item is TextItem || item is VoiceItem)
+                .ToList();
+
+            if (itemsToSplit.Count == 0) return;
+
+            foreach (var item in itemsToSplit)
+            {
+                SplitSingleItem(item, settings, _timeline);
+            }
+
+            _undoRedoManager.Record();
+        }
+
+        private static void SplitSingleItem(IItem selectedItem, TextSplitterSettings settings, Timeline timeline)
+        {
             string? textToSplit = null;
-            if(_selectedItem is TextItem textItem)
+            if (selectedItem is TextItem textItem)
             {
                 textToSplit = textItem.Text;
             }
-            else if(_selectedItem is VoiceItem voiceItem)
+            else if (selectedItem is VoiceItem voiceItem)
             {
                 textToSplit = voiceItem.Serif;
             }
 
             if (string.IsNullOrEmpty(textToSplit)) return;
 
-            var settings = TextSplitterSettings.Default;
-
-            int startFrame = _selectedItem.Frame;
+            int startFrame = selectedItem.Frame;
             int startLayer = settings.IsDeleteOriginalItem
-                ? _selectedItem.Layer
-                : _selectedItem.Layer + 1;
+                ? selectedItem.Layer
+                : selectedItem.Layer + 1;
 
             var itemsToAdd = new List<IItem>();
             IEnumerable<string> textElements;
@@ -78,24 +94,24 @@ namespace TextSplitter.ViewModel
             int remainder = 0;
             if (settings.IsKeepLength && settings.SplitDirection == SplitDirection.Horizontal && totalSplitItems > 0)
             {
-                baseNewLength = _selectedItem.Length / totalSplitItems;
-                remainder = _selectedItem.Length % totalSplitItems;
+                baseNewLength = selectedItem.Length / totalSplitItems;
+                remainder = selectedItem.Length % totalSplitItems;
             }
 
             int i = 0;
             int currentFrame = (settings.SplitDirection == SplitDirection.Horizontal && !settings.IsDeleteOriginalItem)
-                ? startFrame + _selectedItem.Length
+                ? startFrame + selectedItem.Length
                 : startFrame;
             int targetStartFrame = currentFrame;
 
             foreach (string textElement in validTextElements)
             {
-                var newItem = _selectedItem.GetClone();
+                var newItem = selectedItem.GetClone();
                 if (newItem is TextItem newTextItem)
                 {
                     newTextItem.Text = textElement;
                 }
-                else if(newItem is VoiceItem newVoiceItem)
+                else if (newItem is VoiceItem newVoiceItem)
                 {
                     newVoiceItem.Serif = textElement;
                 }
@@ -132,79 +148,75 @@ namespace TextSplitter.ViewModel
 
             if (settings.IsDeleteOriginalItem)
             {
-                _timeline.DeleteItems([_selectedItem]);
-                _timeline.TryAddItems(itemsArray, targetStartFrame, startLayer);
+                timeline.DeleteItems([selectedItem]);
+                timeline.TryAddItems(itemsArray, targetStartFrame, startLayer);
             }
             else
             {
-                _timeline.TryAddItems(itemsArray, targetStartFrame, startLayer);
+                timeline.TryAddItems(itemsArray, targetStartFrame, startLayer);
             }
-            
-            _undoRedoManager.Record();
         }
 
         private bool CanSplitText()
         {
-            string? text = null;
-            if (_selectedItem is TextItem textItem)
+            return _selectedItems.Any(item =>
             {
-                text = textItem.Text;
-            }
-            else if (_selectedItem is VoiceItem voiceItem)
-            {
-                text = voiceItem.Serif;
-            }
-
-            return !string.IsNullOrEmpty(text);
+                if (item is TextItem textItem)
+                {
+                    return !string.IsNullOrEmpty(textItem.Text);
+                }
+                if (item is VoiceItem voiceItem)
+                {
+                    return !string.IsNullOrEmpty(voiceItem.Serif);
+                }
+                return false;
+            });
         }
 
         public void SetTimelineToolInfo(TimelineToolInfo info)
         {
             if (_timeline != null) _timeline.PropertyChanged -= Timeline_PropertyChanged;
-            if(_selectedItem is INotifyPropertyChanged oldItem)
-            {
-                oldItem.PropertyChanged -= SelectedItem_PropertyChanged;
-            }
+            UpdateSelectedItems([]);
 
-            _selectedItem = null;
             _timeline = info.Timeline;
             _undoRedoManager = info.UndoRedoManager;
 
             if (_timeline != null)
             {
                 _timeline.PropertyChanged += Timeline_PropertyChanged;
-                UpdateSelectedItem(_timeline.SelectedItem);
+                UpdateSelectedItems(_timeline.SelectedItems);
             }
         }
 
         private void Timeline_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(Timeline.SelectedItem))
+            if (e.PropertyName == nameof(Timeline.SelectedItems))
             {
-                UpdateSelectedItem(_timeline?.SelectedItem);
+                UpdateSelectedItems(_timeline?.SelectedItems ?? []);
             }
         }
 
-        private void UpdateSelectedItem(IItem? newItem)
+        private void UpdateSelectedItems(IReadOnlyList<IItem> newItems)
         {
-            if (_selectedItem is INotifyPropertyChanged oldItem)
+            foreach (var oldItem in _selectedItems)
             {
-                oldItem.PropertyChanged -= SelectedItem_PropertyChanged;
+                if (oldItem is INotifyPropertyChanged oldINotifyPropertyChanged)
+                {
+                    oldINotifyPropertyChanged.PropertyChanged -= SelectedItem_PropertyChanged;
+                }
             }
 
-            if (newItem is TextItem newTextItem)
+            _selectedItems = newItems;
+
+            foreach (var newItem in _selectedItems)
             {
-                _selectedItem = newTextItem;
-                newTextItem.PropertyChanged += SelectedItem_PropertyChanged;
-            }
-            else if (newItem is VoiceItem newVoiceItem)
-            {
-                _selectedItem = newVoiceItem;
-                newVoiceItem.PropertyChanged += SelectedItem_PropertyChanged;
-            }
-            else
-            {
-                _selectedItem = null;
+                if (newItem is TextItem || newItem is VoiceItem)
+                {
+                    if (newItem is INotifyPropertyChanged newINotifyPropertyChanged)
+                    {
+                        newINotifyPropertyChanged.PropertyChanged += SelectedItem_PropertyChanged;
+                    }
+                }
             }
 
             (SplitTextCommand as ActionCommand)?.RaiseCanExecuteChanged();
