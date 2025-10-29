@@ -13,8 +13,50 @@
             <c:ToggleSlider Value="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=IsDeleteOriginalItem}" HorizontalAlignment="Right"/>
         </Grid>
         <Grid>
+            <Label Content="分割モード" VerticalAlignment="Center"/>
+            <c:EnumComboBox Value="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=SplitMode}" EnumType="{x:Type local:SplitMode}" Width="150" HorizontalAlignment="Right"/>
+        </Grid>
+        <Grid>
             <Label Content="分割方向" VerticalAlignment="Center"/>
             <c:EnumComboBox Value="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=SplitDirection}" EnumType="{x:Type local:SplitDirection}" Width="150" HorizontalAlignment="Right"/>
         </Grid>
+
+        <Expander Header="オプション" IsExpanded="True">
+            <StackPanel>
+                <!-- Vertical -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=SplitDirection}" Value="{x:Static local:SplitDirection.Vertical}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Label Content="ずれ幅" VerticalAlignment="Center"/>
+                    <c:TextBoxSlider Value="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=FrameOffset}" DefaultValue="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=FrameOffset}" StringFormat="F0" Unit="F" DefaultMin="0" DefaultMax="300" Min="0" Max="2147483647" Width="200" HorizontalAlignment="Right"/>
+                </Grid>
+
+                <!-- Horizontal -->
+                <Grid>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=SplitDirection}" Value="{x:Static local:SplitDirection.Horizontal}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                    <Label Content="全体の長さを保持" VerticalAlignment="Center"/>
+                    <c:ToggleSlider Value="{Binding Source={x:Static local:TextSplitterSettings.Default}, Path=IsKeepLength}" HorizontalAlignment="Right"/>
+                </Grid>
+            </StackPanel>
+        </Expander>
+        
+        
     </StackPanel>
 </UserControl>

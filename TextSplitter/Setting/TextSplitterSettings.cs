@@ -16,6 +16,17 @@ namespace TextSplitter.Setting
         private SplitDirection splitDirection = SplitDirection.Vertical;
         public SplitDirection SplitDirection { get => splitDirection; set => Set(ref splitDirection, value); }
 
+        private SplitMode splitMode = SplitMode.PerCharacter;
+        public SplitMode SplitMode { get => splitMode; set => Set(ref splitMode, value); }
+
+        // Vertical
+        private int frameOffset = 0;
+        public int FrameOffset { get => frameOffset; set => Set(ref frameOffset, value); }
+
+        // Horizontal
+        private bool isKeepLength = false;
+        public bool IsKeepLength { get => isKeepLength; set => Set(ref isKeepLength, value); }
+
         public override void Initialize()
         {
         }
